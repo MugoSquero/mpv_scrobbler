@@ -402,13 +402,22 @@ function new_track(name)
             if length and tonumber(length) < 30 then return end -- last.fm doesn't allow scrobbling short tracks
             artist = metadata["artist"]
             if not artist then
+                artist = metadata["Artist"]
+            end
+            if not artist then
                 artist = metadata["ARTIST"]
             end
             album = metadata["album"]
             if not album then
+                album = metadata["Album"]
+            end
+            if not album then
                 album = metadata["ALBUM"]
             end
             title = metadata["title"]
+            if not title then
+                title = metadata["Title"]
+            end
             if not title then
                 title = metadata["TITLE"]
             end
