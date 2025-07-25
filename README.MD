@@ -13,7 +13,7 @@ This project is a Last.fm scrobbler designed for the MPV media player. It enable
      - Copy `scrobble` to `~/.config/mpv/scripts/`
      - Copy `last.fm` to `~/.config/mpv/script-opts/`
 3. **Run the Following Command**: After placing the files, run the following command* to add your Last.fm user:
-	*You need to have [hauzer/scrobbler](https://github.com/hauzer/scrobbler) in your PATH for this script to work
+	\*You need to have [hauzer/scrobbler](https://github.com/hauzer/scrobbler) in your PATH for this script to work
 
    ```
    scrobbler add-user
@@ -29,6 +29,7 @@ The scrobbler is configured using a file named `lastfm.conf`. Below are the key 
 - **track_blacklist**: A comma-separated list of track titles that should not be scrobbled.
 - **fuzzy_metadata_search**: Controls whether to perform a fuzzy search for artist and album names based on the filename. Options are `yes`, `no`, or `cue`.
 - **enforce_overrides**: If set to `yes`, metadata from a separate `.override` file will take precedence over other sources.
+- **only_album_artist**: This setting determines whether to include featured artists in the scrobble. Options are `yes`, `no`, or `must`.
 
 For more information, read the example [lastfm.conf](lastfm.conf) file, as everything is well documented there.
 

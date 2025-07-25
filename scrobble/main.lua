@@ -7,9 +7,11 @@
 -- put lastfm.conf in ~/.config/mpv/script-opts/
 -- put https://github.com/hauzer/scrobbler somewhere in your PATH
 -- run `scrobbler add-user` and follow the instructions
--- create a shortcut for overrides in input.conf if you want to use that feature (e.g., O script-binding scrobble/create-override)
+-- create a shortcut for overrides in input.conf if you want to use this feature (e.g., O script-binding scrobble/create-override)
+
 -- TODO(squero): LOVE TRACK /w uosc support!!
 -- TODO(squero): skip scrobbling current track with a key press (what about now-playing?)
+-- TODO(squero): Support video formats for music videos (partially)
 
 local mp = require 'mp'
 local utils = require 'mp.utils'
@@ -23,7 +25,8 @@ local options = {
     artist_blacklist = "change artist_blacklist in script-opts/lastfm.conf",
     track_blacklist = "change track_blacklist in script-opts/lastfm.conf",
     fuzzy_metadata_search = "change fuzzy_metadata_search in script-opts/lastfm.conf",
-    enforce_overrides = false
+    enforce_overrides = false,
+    only_album_artist = "change only_album_artist in script-opts/lastfm.conf"
 }
 
 read_options(options, 'lastfm')
@@ -286,6 +289,9 @@ function new_track(name)
     local path = mp.get_property("path")
     local filename = mp.get_property("filename")
     local filename_no_ext = mp.get_property("filename/no-ext")
+    local filtered_metadata = get_meta_table("filtered-metadata")
+    local metadata = get_meta_table("metadata")
+
     skip_path_check = nil
 
     if filename == nil then
@@ -335,7 +341,7 @@ function new_track(name)
         end
     end
 
-    if file_extension == "cue" then
+    if file_extension == "cue" or file_extension == "mkv" then
         local chapter_count = tonumber(mp.get_property("chapter-list/count"))
         local chapter_index = mp.get_property("chapter")
         if chapter_index == nil then
@@ -363,7 +369,6 @@ function new_track(name)
         chapter_metadata = get_meta_table("chapter-metadata")
         title = chapter_metadata["title"]
         artist = chapter_metadata["performer"] and chapter_metadata["performer"] or artist
-        filtered_metadata = get_meta_table("filtered-metadata")
 
         if not artist and filtered_metadata == nil then
             mp.msg.error("No metadata was found.")
@@ -387,7 +392,6 @@ function new_track(name)
         end
     else
         length = mp.get_property("duration")
-        local metadata = get_meta_table("metadata")
     
         if metadata == nil and not override_json then
             -- mp.msg.error("No metadata was found.")
@@ -400,27 +404,24 @@ function new_track(name)
             album = nil
         else
             if length and tonumber(length) < 30 then return end -- last.fm doesn't allow scrobbling short tracks
-            artist = metadata["artist"]
-            if not artist then
-                artist = metadata["Artist"]
+            artist = filtered_metadata["Artist"]
+            album_artist = filtered_metadata["Album_Artist"]
+
+            if album_artist then
+                if #options.only_album_artist > 0 then
+                    if options.only_album_artist == "yes" or options.only_album_artist == "must" then
+                        artist = album_artist
+                    end
+                end
+            else
+                if options.only_album_artist == "must" then
+                    mp.msg.warn("The Album_Artist metada was not found, Mustn't scrobble.")
+                    return
+                end
             end
-            if not artist then
-                artist = metadata["ARTIST"]
-            end
-            album = metadata["album"]
-            if not album then
-                album = metadata["Album"]
-            end
-            if not album then
-                album = metadata["ALBUM"]
-            end
-            title = metadata["title"]
-            if not title then
-                title = metadata["Title"]
-            end
-            if not title then
-                title = metadata["TITLE"]
-            end
+
+            album = filtered_metadata["Album"]
+            title = filtered_metadata["Title"]
         end
         if override_json then
             if (override_json["enforce_overrides"] == "yes") or (override_json["enforce_overrides"] == "default" and options.enforce_overrides) then
