@@ -70,12 +70,9 @@ end
 
 function is_absolute_path(path)
     -- Check for Windows absolute path (e.g., C:\path\to\file)
-    if path:gsub("/", "\\"):match("^[a-zA-Z]:\\") then
-        return true
-    end
-
-    -- Check for Unix-like absolute path (e.g., /path/to/file)
     if path:sub(1, 1) == "/" then
+        return true
+    elseif path:gsub("/", "\\"):match("^[a-zA-Z]:\\") then
         return true
     end
 
@@ -499,3 +496,4 @@ mp.observe_property("chapter", nil, new_track)
 -- mp.register_event("playback-restart", on_restart)
 mp.observe_property("pause", "bool", on_pause_change)
 mp.add_key_binding(nil, 'create-override', create_override)
+
