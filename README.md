@@ -1,45 +1,124 @@
 # Last.fm Scrobbler for MPV Player
 
-## Project Description
-This project is a Last.fm scrobbler designed for the MPV media player. It enables users to scrobble tracks played in MPV to their Last.fm account.
+A standalone, lightweight, and asynchronous Last.fm scrobbler for the [mpv media player](https://mpv.io).
+
+It communicates directly and asynchronously with the Last.fm 2.0 Web API using `curl` and an embedded pure Lua MD5 signature engine.
+
+---
+
+## Features
+
+- **No External Scrobbler Binaries:** Works natively with mpv and system `curl`.
+- **Asynchronous Execution:** Background HTTP calls ensure zero video drops or audio stutter.
+- **In-App Authentication:** Authorize your Last.fm account directly inside mpv without touching a terminal.
+- **Now Playing & Scrobbling:** Instant "Now Playing" notifications and accurate threshold-based scrobbles.
+- **Full Loop Support:** Automatically detects looped tracks (`--loop-file`) and rewinds to re-trigger both the "Now Playing" status and a fresh scrobble timer.
+- **Love / Unlove Tracks:** Favorite tracks directly while listening (fully compatible with [uosc](https://github.com/tomasklaen/uosc) menus).
+- **Skip Scrobble:** Cancel the scrobble timer for the current track with one keypress.
+- **Metadata Overrides & CUE Support:** Create `.override` JSON templates to fix mistagged files or chaptered CUE sheets without touching original files.
+- **Whitelists & Blacklists:** Filter scrobbling by media directory, artist name, or track title.
+
+---
 
 ## Installation
-1. **Download the Repository**: Clone or download the repository from GitHub.
-2. **Copy Files**: Place the `scrobble` folder into the MPV scripts directory and the `last.fm` folder into the script options directory:
-   - **For Windows**: 
-     - Copy `scrobble` to `C:\Users\<YourUsername>\AppData\Roaming\mpv\scripts\`
-     - Copy `last.fm` to `C:\Users\<YourUsername>\AppData\Roaming\mpv\script-opts\`
-   - **For Unix/Linux**: 
-     - Copy `scrobble` to `~/.config/mpv/scripts/`
-     - Copy `last.fm` to `~/.config/mpv/script-opts/`
-3. **Run the Following Command**: After placing the files, run the following command* to add your Last.fm user:
-	\*You need to have [hauzer/scrobbler](https://github.com/hauzer/scrobbler) in your PATH for this script to work
 
-   ```
-   scrobbler add-user
-   ```
+### 1. Place the Script and Config
 
-## Configuration
-The scrobbler is configured using a file named `lastfm.conf`. Below are the key configuration options:
+- **Linux / macOS (`~/.config/mpv/`):**
+  ```bash
+  mkdir -p ~/.config/mpv/scripts/scrobble ~/.config/mpv/script-opts
+  cp main.lua ~/.config/mpv/scripts/scrobble/main.lua
+  cp lastfm.conf ~/.config/mpv/script-opts/lastfm.conf
+  ```
 
-- **username**: Your Last.fm username. Run `scrobbler add-user` to set this up.
-- **scrobble_paths**: A comma-separated list of file paths or folders from which to scrobble media. Only tracks from these paths will be scrobbled.
-- **scrobble_threshold**: The percentage of a track that must be played before it is scrobbled (e.g., 50 for halfway).
-- **artist_blacklist**: A comma-separated list of artists whose tracks should not be scrobbled.
-- **track_blacklist**: A comma-separated list of track titles that should not be scrobbled.
-- **fuzzy_metadata_search**: Controls whether to perform a fuzzy search for artist and album names based on the filename. Options are `yes`, `no`, or `cue`.
-- **enforce_overrides**: If set to `yes`, metadata from a separate `.override` file will take precedence over other sources.
-- **only_album_artist**: This setting determines whether to include featured artists in the scrobble. Options are `yes`, `no`, or `must`.
+- **Windows (`%APPDATA%\mpv\`):**
+  - Place `main.lua` in `%APPDATA%\mpv\scripts\scrobble\main.lua`
+  - Place `lastfm.conf` in `%APPDATA%\mpv\script-opts\lastfm.conf`
 
-For more information, read the example [lastfm.conf](lastfm.conf) file, as everything is well documented there.
+> **Note:** `curl` must be available in your system `PATH` (included by default in modern Windows, macOS, and Linux).
 
-## Usage
-1. Have the [hauzer/scrobbler](https://github.com/hauzer/scrobbler) in your PATH
-2. Go through the installation as mentioned earlier.
-3. Configure the script to your liking.
-4. After completing everything, the script should scrobble tracks automatically.
+---
 
-To utilize the override feature, create a shortcut in your `input.conf`:
+## Authentication
+
+1. Add the authentication shortcuts to your `input.conf`:
+```ini
+  ctrl+a script-binding scrobble/auth-start
+   ctrl+f script-binding scrobble/auth-finish
 ```
-O script-binding scrobble/create-override
+2. Play any track in mpv and press `ctrl+a` (or run `script-binding scrobble/auth-start` in the mpv console).
+3. Your default web browser will open to Last.fm. Click **Allow Access**.
+4. Return to mpv and press `ctrl+f` (or run `script-binding scrobble/auth-finish`).
+5. A confirmation message will appear on the OSD, and your session key will be automatically saved to `script-opts/lastfm_session.json`.
+
+---
+
+## Keybindings (`input.conf`)
+
+Add these recommended shortcuts to your `~/.config/mpv/input.conf`:
+
+```ini
+# Last.fm Playback Controls
+L       script-binding scrobble/toggle-love-track   # Love / Unlove current track
+ctrl+s  script-binding scrobble/skip-scrobble       # Cancel scrobbling current track
+O       script-binding scrobble/create-override     # Create .override JSON template
+
+# Authentication
+ctrl+a  script-binding scrobble/auth-start          # Start OAuth web login
+ctrl+f  script-binding scrobble/auth-finish         # Complete authentication
+ctrl+S  script-binding scrobble/auth-status         # Authentication status
 ```
+
+### uosc Integration
+
+#### 1. Add to uosc Menu (`input.conf`)
+uosc builds its context menu by parsing `#!` comments in `input.conf`:
+```ini
+# Items in a "Last.fm" submenu
+L      script-binding scrobble/toggle-love-track #! Last.fm > Toggle Love track
+ctrl+s script-binding scrobble/skip-scrobble     #! Last.fm > Skip scrobble
+O      script-binding scrobble/create-override   #! Last.fm > Create override template
+```
+
+#### 2. Add to uosc Control Bar (`uosc.conf`)
+To add dedicated buttons to the proximity control bar above the timeline, insert them into the `controls` property in `script-opts/uosc.conf`:
+```ini
+# Adds Love (heart) and Skip buttons to the control bar
+controls=...,command:favorite:script-binding scrobble/toggle-love-track?Toggle Love track,command:skip_next:script-binding scrobble/skip-scrobble?Skip scrobble,...
+```
+
+---
+
+## Configuration (`lastfm.conf`)
+
+Adjust settings in `~/.config/mpv/script-opts/lastfm.conf`:
+
+| Option | Default | Description |
+| :--- | :--- | :--- |
+| `scrobble_threshold` | `50` | Percentage of track played before submitting scrobble (min 30s). |
+| `scrobble_paths` | `""` | Comma-separated paths/folder names to whitelist. Empty allows all. |
+| `artist_blacklist` | `""` | Comma-separated list of artist names to ignore. |
+| `track_blacklist` | `""` | Comma-separated list of track titles to ignore. |
+| `fuzzy_metadata_search` | `cue` | Parse `"Artist - Album"` from filename (`yes`, `no`, `cue`). |
+| `only_album_artist` | `no` | Prioritize `Album_Artist` tags (`yes`, `no`, `must`). |
+| `enforce_overrides` | `no` | Force `.override` values to supersede embedded tags (`yes`, `no`). |
+| `api_key` | `""` | Custom Last.fm API key (optional; defaults to built-in key). |
+| `api_secret` | `""` | Custom Last.fm API secret (optional; defaults to built-in secret). |
+
+---
+
+## Metadata Overrides
+
+To override tags without altering your audio files:
+1. Press `O` (`create-override`) during playback.
+2. A `<filename>.override` template is generated in the media directory.
+3. Edit the JSON file to override the `artist`, `album`, or `title`:
+```json
+{
+  "artist": "Correct Artist",
+  "album": "Correct Album",
+  "title": "Correct Title",
+  "enforce_overrides": "yes"
+}
+```
+For CUE sheets, individual chapter indexes (`"0"`, `"1"`, etc.) can be overridden under the `"chapters"` key.
